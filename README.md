@@ -1,3 +1,6 @@
+# NOTE: WSL2 has broken the reactJS live reload, either use WSL1 or CMD
+https://github.com/facebook/create-react-app/issues/10253
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
