@@ -29,16 +29,16 @@ export default function ImageProcessing(props) {
 		let imgBlob = await getBlob(event.target.files[0])
 
 		//Crop imgBlob
-		//imgBlob = await cropImg(imgBlob, {top:500, left:300})
+		//imgBlob = await crop(imgBlob, {top:500, left:300})
 
 		//Apply aspect ratio to imgBlob
-		//imgBlob = await cropImg(imgBlob, {top:500, left:300})
+		//imgBlob = await applyRatio(imgBlob, 1)
 
 		//Scaled imgBlob
-		//imgBlob = await cropImg(imgBlob, {top:500, left:300})
+		//imgBlob = await scale(imgBlob, {top:500, left:300})
 
 		//Compress img
-		const compressedFile = await compressImg(imgBlob)
+		const compressedFile = await compress(imgBlob)
 
 		//Save data
 		setImageBlobs(imageBlobs => [...imageBlobs, { id: generateID(imageBlobs), data: compressedFile }])
@@ -50,7 +50,7 @@ export default function ImageProcessing(props) {
 
 /**
  * Takes a file object and returns a blob
- * @param {Object} imgFile https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#getting_information_on_selected_files
+ * @param {object} imgFile https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#getting_information_on_selected_files
  * @returns {Promise<Blob>} imgge Blob
  */
 async function getBlob(imgFile) {
@@ -58,7 +58,7 @@ async function getBlob(imgFile) {
 		const fr = new FileReader()
 		fr.readAsArrayBuffer(imgFile)
 		fr.onload = () => {
-			const blob = new Blob([fr.result], {type:imgFile.type});
+			const blob = new Blob([fr.result], { type: imgFile.type });
 			resolve(blob)
 		}
 	})
@@ -69,7 +69,7 @@ async function getBlob(imgFile) {
  * @param {Blob} imgBlob 
  * @returns {Promise<Blob>} an image blob
  */
-async function compressImg(imgBlob) {
+async function compress(imgBlob) {
 	//Compression options for browser-image-compression
 	const options = {
 		maxSizeMB: .05,
@@ -84,14 +84,56 @@ async function compressImg(imgBlob) {
 		console.error(err)
 	}
 }
+
 /**
  * Applies an aspect ratio: https://en.wikipedia.org/wiki/Aspect_ratio_%28image%29#Still_photography
  * @param {Blob} imgBlob 
  * @param {Float} ratio see wikipedia page for standard ratios, and https://www.inchcalculator.com/ratio-to-decimal-calculator/ for ratio to decimal calculator
  * @returns {Promise<Blob>} cropped img blob
  */
-async function applyAspectRatio(imgBlob, ratio) {
-	throw new Error("Unimplemented")
+async function applyRatio(imgBlob, ratio) {
+	//InverseRatio is used on width, ratio is used on height
+	const inverseRatio = 1 / ratio
+
+	const dimensions = await getDimensions(imgBlob)
+
+	//Get desired dimensions to be used for comparison (rounded)
+	const desiredHeight = parseFloat(inverseRatio * dimensions.width).toFixed(0)
+	const desiredWidth = parseFloat(ratio * dimensions.height).toFixed(0)
+
+	if (dimensions.height > desiredHeight) {
+		//Crop excess from height
+		//Calc how many pixels need to be removed in total
+		const toRemove = dimensions.height - desiredHeight
+
+		/*
+		 Because we are dividing by 2, uneven numbers will give us a x.5 value.
+		 To ensure the accurate amount of total pixels is being removed,
+		 we favor the one side by increasing it by .1 and removing .1 from the other,
+		 this ensures that the total pixels removed is always correct.
+		*/
+		const fromTop = Number(parseFloat((toRemove / 2) + .1).toFixed(0))
+		const fromBot = Number(parseFloat((toRemove / 2) - .1).toFixed(0))
+
+		return crop(imgBlob, { top: fromTop, bottom: fromBot })
+	} else if (dimensions.width > desiredWidth) {
+		//Crop excess from width
+		//Calc how many pixels need to be removed in total
+		const toRemove = dimensions.width - desiredWidth
+
+		/*
+		 Because we are dividing by 2, uneven numbers will give us a x.5 value.
+		 To ensure the accurate amount of total pixels is being removed,
+		 we favor the one side by increasing it by .1 and removing .1 from the other,
+		 this ensures that the total pixels removed is always correct.
+		*/
+		const fromLeft = Number(parseFloat((toRemove / 2) + .1).toFixed(0))
+		const fromRight = Number(parseFloat((toRemove / 2) - .1).toFixed(0))
+		return crop(imgBlob, { left: fromLeft, right: fromRight })
+	}
+
+	//Already at desired aspect ratio
+	return imgBlob
 }
 
 /**
@@ -100,17 +142,17 @@ async function applyAspectRatio(imgBlob, ratio) {
  * @param {Number} px the px size to scale to, applied to the largest dimension
  * @returns {Promise<Blob>} scaled image Blob
  */
-async function scaleImg(imgBlob, px) {
+async function scale(imgBlob, px) {
 	throw new Error("Unimplemented")
 }
 
 /**
  * Crops an image according the provided cropOptions object
  * @param {Blob} imgBlob image data in blob format
- * @param {Object} cropOptions {top?:number, right?:number, bottom?:number, left?:number}
+ * @param {object} cropOptions {top?:number, right?:number, bottom?:number, left?:number}
  * @returns {Promise<Blob>} cropped image Blob
  */
-async function cropImg(imgBlob, cropOptions) {
+async function crop(imgBlob, cropOptions) {
 	return new Promise(async (resolve) => {
 		//check null and assign default values to avoid NaN calculations
 		if (cropOptions == undefined)
@@ -136,9 +178,7 @@ async function cropImg(imgBlob, cropOptions) {
 			canvas.getContext('2d').drawImage(img, -cropOptions.left, -cropOptions.top)
 
 			//Get cropped blob from canvas and resolve promise
-			canvas.toBlob((blob) => {
-				resolve(blob)
-			})
+			canvas.toBlob(blob => resolve(blob))
 		}
 
 		//Load img blob
@@ -149,7 +189,7 @@ async function cropImg(imgBlob, cropOptions) {
 /**
  * Returns the width and height of an img
  * @param {Blob} imgBlob imageBlob
- * @returns {Object} {width: number, height: number}
+ * @returns {Promise<object>} {width: number, height: number}
  */
 async function getDimensions(imgBlob) {
 	return new Promise((resolve) => {
@@ -171,7 +211,7 @@ async function getDimensions(imgBlob) {
  * (50, 100) = -100%, (100, 75) = 25%, (50, 50) = 0%
  */
 function reducPercent(start, end) {
-	return Math.floor( ( (start - end) / start) * 100)
+	return Math.floor(((start - end) / start) * 100)
 }
 
 /**
