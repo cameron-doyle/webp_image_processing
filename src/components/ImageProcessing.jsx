@@ -7,15 +7,15 @@ import imageCompression from 'browser-image-compression';
 /* The componant function */
 export default function ImageProcessing(props) {
 	//Array of objects that stores image blobs as "data" and incrementing id's as "id"
-	const [imageBlobs, setImageBlobs] = useState([]);
-
+	const [imageBlob, setImageBlob] = useState();
 	const [path, setPath] = useState("");
 
 
 	return (
 		<div>
 			<input id="testImg" type="file" accept="image/*" onChange={handleImageUpload} value={path} />
-			<div id='compressedImage'>{imageBlobs.map(image => <img src={URL.createObjectURL(image.data)} key={image.id} />)}</div>
+			<img id='compressedImage' src="./83f.png" />
+			{(imageBlob != undefined) ? <img id='compressedImage' src={URL.createObjectURL(imageBlob)} />:''}
 		</div>
 	)
 
@@ -29,19 +29,20 @@ export default function ImageProcessing(props) {
 		let imgBlob = await getBlob(event.target.files[0])
 
 		//Crop imgBlob
-		//imgBlob = await crop(imgBlob, {top:500, left:300})
+		imgBlob = await crop(imgBlob, {top:80, left:80})
 
-		//Apply aspect ratio to imgBlob
-		//imgBlob = await applyRatio(imgBlob, 1)
+		//Apply aspect ratio
+		imgBlob = await applyRatio(imgBlob, 1.333)
 
-		//Scaled imgBlob
-		//imgBlob = await scale(imgBlob, {top:500, left:300})
+		//Scale imgBlob
+		imgBlob = await scale(imgBlob, 100)
 
 		//Compress img
-		const compressedFile = await compress(imgBlob)
+		//const compressedFile = await compress(imgBlob)
+		const compressedFile = imgBlob
 
 		//Save data
-		setImageBlobs(imageBlobs => [...imageBlobs, { id: generateID(imageBlobs), data: compressedFile }])
+		setImageBlob(compressedFile)
 
 		//Display results
 		console.log(`size: original = ${Math.floor(imgBlob.size / 1024, 2)} kb, compressed = ${Math.floor(compressedFile.size / 1024, 2)} kb. ${reducPercent(imgBlob.size, compressedFile.size)}%`)
@@ -95,14 +96,14 @@ async function applyRatio(imgBlob, ratio) {
 	//InverseRatio is used on width, ratio is used on height
 	const inverseRatio = 1 / ratio
 
+	//Get image dimensions
 	const dimensions = await getDimensions(imgBlob)
 
-	//Get desired dimensions to be used for comparison (rounded)
+	//Get desired (optimal) dimensions to be used for cropping
 	const desiredHeight = parseFloat(inverseRatio * dimensions.width).toFixed(0)
 	const desiredWidth = parseFloat(ratio * dimensions.height).toFixed(0)
 
-	if (dimensions.height > desiredHeight) {
-		//Crop excess from height
+	if (dimensions.height > desiredHeight) { //Crop excess from height
 		//Calc how many pixels need to be removed in total
 		const toRemove = dimensions.height - desiredHeight
 
@@ -116,8 +117,7 @@ async function applyRatio(imgBlob, ratio) {
 		const fromBot = Number(parseFloat((toRemove / 2) - .1).toFixed(0))
 
 		return crop(imgBlob, { top: fromTop, bottom: fromBot })
-	} else if (dimensions.width > desiredWidth) {
-		//Crop excess from width
+	} else if (dimensions.width > desiredWidth) { //Crop excess from width
 		//Calc how many pixels need to be removed in total
 		const toRemove = dimensions.width - desiredWidth
 
@@ -143,7 +143,40 @@ async function applyRatio(imgBlob, ratio) {
  * @returns {Promise<Blob>} scaled image Blob
  */
 async function scale(imgBlob, px) {
-	throw new Error("Unimplemented")
+	return new Promise(async (resolve) => {
+		const canvas = document.createElement('canvas')
+
+		if(px <= 0) px = 1
+
+		//Get img w/h
+		const dimensions = await getDimensions(imgBlob)
+
+		let scale
+		if(dimensions.width >= dimensions.height){
+			//BUG maths is broken, 990 pixels is making the width be 10px?!
+			scale = (dimensions.width - px) / dimensions.width
+		}else{
+			scale = (dimensions.height - px) / dimensions.height
+		}
+		
+		canvas.width = dimensions.width - (dimensions.width * scale)
+		canvas.height = dimensions.height - (dimensions.height * scale)
+		console.log("Scale", scale)
+		console.log("Scaling", canvas.width, canvas.height)
+
+		const img = new Image()
+
+		//When loading is complete, return the cropped img
+		img.onload = () => {
+			canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
+
+			//Get cropped blob from canvas and resolve promise
+			canvas.toBlob(blob => resolve(blob))
+		}
+
+		//Load img blob
+		img.src = URL.createObjectURL(imgBlob)
+	})
 }
 
 /**
@@ -153,6 +186,7 @@ async function scale(imgBlob, px) {
  * @returns {Promise<Blob>} cropped image Blob
  */
 async function crop(imgBlob, cropOptions) {
+	//TODO limit the cropping so that we can't crop more than the pixels avliable, if l+r > width, l & r = parseFloat((width / 2) +/- .1).toFixed(0)
 	return new Promise(async (resolve) => {
 		//check null and assign default values to avoid NaN calculations
 		if (cropOptions == undefined)

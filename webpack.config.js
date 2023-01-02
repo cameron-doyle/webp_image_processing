@@ -43,11 +43,6 @@ module.exports = {
 					},
 					{
 						loader: 'css-loader',
-						options: {
-							modules: true,
-							localsConvention: 'camelCase',
-							sourceMap: true
-						}
 					}
 				]
 			}
