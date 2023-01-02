@@ -21,7 +21,6 @@ export default function ImageProcessing(props) {
 
 	//Compresses images on change of the file input
 	async function handleImageUpload(event) {
-		//TODO figure out how to crop data (look at another img processor like jimp)
 		//Update the path value for file input
 		setPath(event.target.value)
 
@@ -67,8 +66,8 @@ async function getBlob(imgFile) {
 
 /**
  * Compresses an image
- * @param {*} imgBlob 
- * @returns {Promise<Blob>}
+ * @param {Blob} imgBlob 
+ * @returns {Promise<Blob>} an image blob
  */
 async function compressImg(imgBlob) {
 	//Compression options for browser-image-compression
@@ -85,13 +84,24 @@ async function compressImg(imgBlob) {
 		console.error(err)
 	}
 }
-/** Apply aspect ratio https://en.wikipedia.org/wiki/Aspect_ratio_%28image%29 */
-async function applyAspectRatio() {
-
+/**
+ * Applies an aspect ratio: https://en.wikipedia.org/wiki/Aspect_ratio_%28image%29#Still_photography
+ * @param {Blob} imgBlob 
+ * @param {Float} ratio see wikipedia page for standard ratios, and https://www.inchcalculator.com/ratio-to-decimal-calculator/ for ratio to decimal calculator
+ * @returns {Promise<Blob>} cropped img blob
+ */
+async function applyAspectRatio(imgBlob, ratio) {
+	throw new Error("Unimplemented")
 }
 
-async function scaleImgByWidth(desiredWidth) {
-
+/**
+ * Scales an image 
+ * @param {Blob} imgBlob 
+ * @param {Number} px the px size to scale to, applied to the largest dimension
+ * @returns {Promise<Blob>} scaled image Blob
+ */
+async function scaleImg(imgBlob, px) {
+	throw new Error("Unimplemented")
 }
 
 /**
@@ -153,16 +163,22 @@ async function getDimensions(imgBlob) {
 	})
 }
 
-//reduction representated by a persent, example: (100, 76) = 25%
-function reducPercent(num1, num2) {
-	//Calc diff (largest input - smallest input)
-	let diff = (num1 > num2) ? num1 - num2 : num2 - num1
-
-	//Calc percentage decrease (diff / largest input * 100)
-	return Math.floor((diff / (num1 > num2 ? num1 : num2)) * 100)
+/**
+ * A reduction value representated in persentage, 
+ * @param {Number} start Either the smalled or largest
+ * @param {Number} end 
+ * @returns {Number} examples: 
+ * (50, 100) = -100%, (100, 75) = 25%, (50, 50) = 0%
+ */
+function reducPercent(start, end) {
+	return Math.floor( ( (start - end) / start) * 100)
 }
 
-//Returns a new ID based on the last element's id of a sorted array of objects (requires an object key of "id")
+/**
+ * Returns a new ID based on the last element's id of a sorted array of objects (requires an object key of "id")
+ * @param {Array<object>} array (objects bust contain a numerical "id" key)
+ * @returns {Number} newID based on largest ID in the array
+ */
 function generateID(array) {
 	//Sort array by id
 	array.sort((obj1, obj2) => {
@@ -177,6 +193,7 @@ function generateID(array) {
 	//Return either the lastID + 1, or 1 in case of no elements (first element assumed)
 	return (lastEle !== undefined && lastEle.id > 0) ? lastEle.id + 1 : 1
 }
+
 
 /* function whatOS() {
 
