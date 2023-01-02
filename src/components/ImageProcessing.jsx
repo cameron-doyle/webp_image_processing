@@ -33,16 +33,17 @@ export default function ImageProcessing(props) {
 		const ogDimensions = await getDimensions(imgBlob)
 
 		//Crop imgBlob
-		//imgBlob = await crop(imgBlob, {top:80, left:80})
+		//imgBlob = await crop(imgBlob, {top:350, right:0, bottom:200, left:0})
 
-		//Apply aspect ratio
-		imgBlob = await applyRatio(imgBlob, 1.333)
-
+		
 		//Scale imgBlob
-		imgBlob = await scale(imgBlob, 720)
-
+		imgBlob = await scale(imgBlob, 1920)
+		
+		//Apply aspect ratio
+		imgBlob = await applyRatio(imgBlob, 1.77777777778)
 		//Compress img
-		const compressedFile = await compress(imgBlob, 40)
+		const quality = 40
+		const compressedFile = await compress(imgBlob, quality)
 
 		//Get new dimensions
 		const dimensions = await getDimensions(compressedFile)
@@ -51,7 +52,7 @@ export default function ImageProcessing(props) {
 		setImageBlob(compressedFile)
 
 		//Display results
-		console.log(`size: original = ${Math.floor(imgFile.size / 1024, 2)} kb, compressed = ${Math.floor(compressedFile.size / 1024, 2)} kb. ${reducPercent(imgFile.size, compressedFile.size)}%`)
+		console.log(`size: original = ${Math.floor(imgFile.size / 1024, 2)} kb, compressed = ${Math.floor(compressedFile.size / 1024, 2)} kb. ${reducPercent(imgFile.size, compressedFile.size)}% @${quality}% quality`)
 		console.log(`dimensions: before ${ogDimensions.width}x${ogDimensions.height}, after: ${dimensions.width}x${dimensions.height}`)
 	}
 }
@@ -159,6 +160,7 @@ async function compress(imgBlob, quality) {
  * @returns {Promise<Blob>} cropped img blob
  */
 async function applyRatio(imgBlob, ratio) {
+	//BUG it would appear that the aspect ratios are not working correctly...
 	//InverseRatio is used on width, ratio is used on height
 	const inverseRatio = 1 / ratio
 
@@ -181,6 +183,11 @@ async function applyRatio(imgBlob, ratio) {
 		*/
 		const fromTop = Number(parseFloat((toRemove / 2) + .1).toFixed(0))
 		const fromBot = Number(parseFloat((toRemove / 2) - .1).toFixed(0))
+
+		console.warn(desiredHeight, desiredWidth)
+		console.warn(dimensions.height - desiredHeight)
+		console.warn(fromTop + fromBot)
+		console.warn(dimensions.height - (fromTop + fromBot))
 
 		return crop(imgBlob, { top: fromTop, bottom: fromBot })
 	} else if (dimensions.width > desiredWidth) { //Crop excess from width
