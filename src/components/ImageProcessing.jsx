@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import PropTypes, { arrayOf, object } from 'prop-types'
 
-import imageCompression from 'browser-image-compression';
+import webp_enc from '../webp/webp_enc'
 
 /* The componant function */
 export default function ImageProcessing(props) {
@@ -14,13 +14,15 @@ export default function ImageProcessing(props) {
 	return (
 		<div>
 			<input id="testImg" type="file" accept="image/*" onChange={handleImageUpload} value={path} />
-			
-			{(imageBlob != undefined) ? <img id='compressedImage' src={URL.createObjectURL(imageBlob)} />:<img id='compressedImage' src="./83f.png" />}
+
+			{(imageBlob != undefined) ? <img id='compressedImage' src={URL.createObjectURL(imageBlob)} /> : <img id='compressedImage' src="./83f.png" />}
 		</div>
 	)
 
 	//Compresses images on change of the file input
 	async function handleImageUpload(event) {
+		//TODO for the sake of usability, make all methods take a file from filelist, and convert it to blob if not blob https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#getting_information_on_selected_files
+		
 		//Update the path value for file input
 		setPath(event.target.value)
 
@@ -37,12 +39,12 @@ export default function ImageProcessing(props) {
 		//imgBlob = await applyRatio(imgBlob, 1.333)
 
 		//Scale imgBlob
-		//imgBlob = await scale(imgBlob, 740)
+		//imgBlob = await scale(imgBlob, 1024)
 
 		//Compress img
-		const compressedFile = await compress(imgBlob)
-		//const compressedFile = imgBlob
+		const compressedFile = await compress(imgBlob, 10)
 
+		//Get new dimensions
 		const dimensions = await getDimensions(compressedFile)
 
 		//Save data
@@ -57,7 +59,7 @@ export default function ImageProcessing(props) {
 /**
  * Takes a file object and returns a blob
  * @param {object} imgFile https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#getting_information_on_selected_files
- * @returns {Promise<Blob>} imgge Blob
+ * @returns {Promise<Blob>} Image Blob
  */
 async function getBlob(imgFile) {
 	return new Promise((resolve) => {
@@ -71,24 +73,77 @@ async function getBlob(imgFile) {
 }
 
 /**
- * Compresses an image
+ * Takes a Blob and returns an instance of ImageData
  * @param {Blob} imgBlob 
- * @returns {Promise<Blob>} an image blob
+ * @returns {Promise<ImageData>} ImageData
  */
-async function compress(imgBlob) {
-	//Compression options for browser-image-compression
-	const options = {
-		maxSizeMB: .05,
-		useWebWorker: true
-	}
+async function getImageData(imgBlob) {
+	return new Promise(async (resolve) => {
+		const canvas = document.createElement('canvas')
 
-	//Compress img
-	try {
-		//TODO change to webp codec https://github.com/GoogleChromeLabs/squoosh/tree/dev/codecs/webp
-		return await imageCompression(imgBlob, options)
-	} catch (err) {
-		console.error(err)
-	}
+		//Get img w/h
+		const dimensions = await getDimensions(imgBlob)
+
+		canvas.width = dimensions.width
+		canvas.height = dimensions.height
+
+		const img = new Image()
+
+		//When loading is complete, return the ImageData
+		img.onload = () => {
+			const ctx = canvas.getContext('2d')
+			ctx.drawImage(img, 0, 0)
+
+			//Get ImageData
+			resolve(ctx.getImageData(0, 0, dimensions.width, dimensions.height))
+		}
+
+		//Load img blob
+		img.src = URL.createObjectURL(imgBlob)
+	})
+}
+
+/**
+ * Compresses an image Blob
+ * @param {Blob} imgBlob 
+ * @param {Number} quality 
+ * @returns {Promise<Blob>} compressed image blob
+ */
+async function compress(imgBlob, quality = 75) {
+	return new Promise(async resolve => {
+		webp_enc().then(async module => {
+			const image = await getImageData(imgBlob);
+			resolve(new Blob([module.encode(image.data, image.width, image.height, {
+				quality,
+				target_size: 0,
+				target_PSNR: 0,
+				method: 4,
+				sns_strength: 50,
+				filter_strength: 60,
+				filter_sharpness: 0,
+				filter_type: 1,
+				partitions: 0,
+				segments: 4,
+				pass: 1,
+				show_compressed: 0,
+				preprocessing: 0,
+				autofilter: 0,
+				partition_limit: 0,
+				alpha_compression: 1,
+				alpha_filtering: 1,
+				alpha_quality: 100,
+				lossless: 0,
+				exact: 0,
+				image_hint: 0,
+				emulate_jpeg_size: 0,
+				thread_level: 0,
+				low_memory: 0,
+				near_lossless: 100,
+				use_delta_palette: 0,
+				use_sharp_yuv: 0,
+			})], { type: 'image/webp' }));
+		})
+	})
 }
 
 /**
@@ -151,19 +206,19 @@ async function scale(imgBlob, px) {
 	return new Promise(async (resolve) => {
 		const canvas = document.createElement('canvas')
 
-		if(px <= 0) px = 1
+		if (px <= 0) px = 1
 
 		//Get img w/h
 		const dimensions = await getDimensions(imgBlob)
 
 		let scale
-		if(dimensions.width >= dimensions.height){
+		if (dimensions.width >= dimensions.height) {
 			//BUG maths is broken, 990 pixels is making the width be 10px?!
 			scale = (dimensions.width - px) / dimensions.width
-		}else{
+		} else {
 			scale = (dimensions.height - px) / dimensions.height
 		}
-		
+
 		canvas.width = dimensions.width - (dimensions.width * scale)
 		canvas.height = dimensions.height - (dimensions.height * scale)
 		console.log("Scale", scale)
@@ -275,7 +330,7 @@ function generateID(array) {
 
 
 /* function whatOS() {
-
+	
 	//List of Operating Systems
 	const os = [
 		{ name: "Android", value: "Android" },
