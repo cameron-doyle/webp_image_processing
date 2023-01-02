@@ -14,8 +14,8 @@ export default function ImageProcessing(props) {
 	return (
 		<div>
 			<input id="testImg" type="file" accept="image/*" onChange={handleImageUpload} value={path} />
-			<img id='compressedImage' src="./83f.png" />
-			{(imageBlob != undefined) ? <img id='compressedImage' src={URL.createObjectURL(imageBlob)} />:''}
+			
+			{(imageBlob != undefined) ? <img id='compressedImage' src={URL.createObjectURL(imageBlob)} />:<img id='compressedImage' src="./83f.png" />}
 		</div>
 	)
 
@@ -26,6 +26,7 @@ export default function ImageProcessing(props) {
 
 
 		//Get img blob from file
+		const imgFile = event.target.files[0];
 		let imgBlob = await getBlob(event.target.files[0])
 
 		//Crop imgBlob
@@ -35,7 +36,7 @@ export default function ImageProcessing(props) {
 		imgBlob = await applyRatio(imgBlob, 1.333)
 
 		//Scale imgBlob
-		imgBlob = await scale(imgBlob, 100)
+		imgBlob = await scale(imgBlob, 240)
 
 		//Compress img
 		//const compressedFile = await compress(imgBlob)
@@ -45,7 +46,7 @@ export default function ImageProcessing(props) {
 		setImageBlob(compressedFile)
 
 		//Display results
-		console.log(`size: original = ${Math.floor(imgBlob.size / 1024, 2)} kb, compressed = ${Math.floor(compressedFile.size / 1024, 2)} kb. ${reducPercent(imgBlob.size, compressedFile.size)}%`)
+		console.log(`size: original = ${Math.floor(imgFile.size / 1024, 2)} kb, compressed = ${Math.floor(compressedFile.size / 1024, 2)} kb. ${reducPercent(imgFile.size, compressedFile.size)}%`)
 	}
 }
 
@@ -171,7 +172,7 @@ async function scale(imgBlob, px) {
 			canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
 
 			//Get cropped blob from canvas and resolve promise
-			canvas.toBlob(blob => resolve(blob))
+			canvas.toBlob(blob => resolve(blob), imgBlob.type, .75)
 		}
 
 		//Load img blob
@@ -212,7 +213,7 @@ async function crop(imgBlob, cropOptions) {
 			canvas.getContext('2d').drawImage(img, -cropOptions.left, -cropOptions.top)
 
 			//Get cropped blob from canvas and resolve promise
-			canvas.toBlob(blob => resolve(blob))
+			canvas.toBlob(blob => resolve(blob), imgBlob.type, .75)
 		}
 
 		//Load img blob
