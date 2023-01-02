@@ -1,18 +1,21 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import PropTypes from 'prop-types'
+import PropTypes, { arrayOf, object } from 'prop-types'
 
 import imageCompression from 'browser-image-compression';
 
+/* The componant function */
+export default function ImageProcessing(props) {
+	//Array of objects that stores image blobs as "data" and incrementing id's as "id"
+	const [imageBlobs, setImageBlobs] = useState([]);
 
-function ImageProcessing(props) {
 	const [path, setPath] = useState("");
-	const [images, setImages] = useState();
-	//const path = ""
+
+	
 	return (
 		<div>
-			<input type="file" accept="image/*" onChange={handleImageUpload} value={path} />
-			<div id='compressedImage'>{images}</div>
+			<input id="testImg" type="file" accept="image/*" onChange={handleImageUpload} value={path}/>
+			<div id='compressedImage'>{imageBlobs.map(image => <img src={URL.createObjectURL(image.data)} key={image.id}/>)}</div>
 		</div>
 	)
 
@@ -22,62 +25,79 @@ function ImageProcessing(props) {
 		//Update the path value for file input
 		setPath(event.target.value)
 
-		//Get img data as blob
-		const imageFile = event.target.files[0];
-		console.log('originalFile instanceof Blob', imageFile instanceof Blob); // true
-		console.log(`originalFile size ${imageFile.size / 1024 / 1024} MB`);
 
-		//Compression options for browser-image-compression
-		const options = {
-			maxSizeMB: .05,
-			maxWidthOrHeight: 720,
-			useWebWorker: true
-		}
+		//Get img data as blob
+		let imageFile = event.target.files[0]
+		
+		imageFile = await cropImg(imageFile)
 
 		//Compress img
-		try {
-			const compressedFile = await imageCompression(imageFile, options);
-			console.log('compressedFile instanceof Blob', compressedFile instanceof Blob); // true
-			console.log(`compressedFile size ${compressedFile.size / 1024 / 1024} MB`); // smaller than maxSizeMB
+		const compressedFile = await compressImg(imageFile)
 
-			//Displays compressed img
-			displayImg(compressedFile);
-		} catch (error) {
-			console.log(error);
-		}
+		//Save data
+		setImageBlobs(imageBlobs  => [...imageBlobs, {id:generateID(imageBlobs),data:compressedFile}])
+
+		//Display results
+		console.log(`size: original = ${Math.floor(imageFile.size / 1024, 2)} kb, compressed = ${Math.floor(compressedFile.size / 1024, 2)} kb. ${reducPercent(imageFile.size, compressedFile.size)}%`)
+	}
+}
+
+
+//Compresses an img and returns the compressed img as a blob
+async function compressImg(imgBlob){
+	//Compression options for browser-image-compression
+	const options = {
+		maxSizeMB: .05,
+		maxWidthOrHeight: 720,
+		useWebWorker: true
 	}
 
-	//Displays an img inside a canvas element
-	function displayImg(fileBlob) {
-		let canvas = document.createElement('canvas');
-
-		HTMLCanvasElement.prototype.renderImage = function (blob) {
-			let ctx = this.getContext('2d');
-			let img = new Image();
-			const instance = this //Used in img.onload to reference canvas width/height properties
-
-			//Called when img is being loaded
-			img.onload = function () {
-				//Set width/height of canvas to match img data
-				instance.width = img.width
-				instance.height = img.height
-
-				//Draw image
-				ctx.drawImage(img, 0, 0)
-			}
-
-			//Load image data to img
-			img.src = URL.createObjectURL(blob);
-		};
-
-		const dimensions = canvas.renderImage(fileBlob, (dimensions) => {
-			/* canvas.width = dimensions.width
-			canvas.height = dimensions.height */
-			document.getElementById("compressedImage").appendChild(canvas)
-			console.log(dimensions)
-		});
-		document.getElementById("compressedImage").appendChild(canvas)
+	//Compress img
+	try {
+		//TODO change to webp codec https://github.com/GoogleChromeLabs/squoosh/tree/dev/codecs/webp
+		return await imageCompression(imgBlob, options)
+	} catch (err) {
+		console.error(err)
 	}
+}
+/** Apply aspect ratio https://en.wikipedia.org/wiki/Aspect_ratio_%28image%29 */
+async function applyAspectRatio(){
+
+}
+
+/** Crops an image according the provided optionsObj {top, right, bottom, left} */
+async function cropImg(imgBlob, cropOptions){
+	cropOptions = {left:200, bottom: 100}
+
+	const can = document.createElement('canvas')
+	
+
+	return imgBlob
+}
+
+//reduction representated by a persent, example: (100, 76) = 25%
+function reducPercent(num1, num2){
+	//Calc diff (largest input - smallest input)
+	let diff = (num1 > num2) ? num1 - num2:num2 - num1
+
+	//Calc percentage decrease (diff / largest input * 100)
+	return Math.floor((diff / (num1 > num2 ? num1:num2)) * 100)
+}
+
+//Returns a new ID based on the last element's id of a sorted array of objects (requires an object key of "id")
+function generateID(array){
+	//Sort array by id
+	array.sort((obj1, obj2) => {
+		if(obj1.id < obj2.id) return -1
+		if(obj1.id > obj2.id) return 1
+		return 0
+	})
+
+	//Get last element of sorted array
+	let lastEle = array[array.length - 1]
+
+	//Return either the lastID + 1, or 1 in case of no elements (first element assumed)
+	return (lastEle !== undefined && lastEle.id > 0) ? lastEle.id + 1:1
 }
 
 /* function whatOS() {
@@ -102,7 +122,7 @@ function ImageProcessing(props) {
 	}
 } */
 
+ImageProcessing.propTypes = {
+	data:arrayOf(Blob)
+}
 
-ImageProcessing.propTypes = {}
-
-export default ImageProcessing
