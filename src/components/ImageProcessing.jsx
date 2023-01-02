@@ -28,25 +28,29 @@ export default function ImageProcessing(props) {
 		//Get img blob from file
 		const imgFile = event.target.files[0];
 		let imgBlob = await getBlob(event.target.files[0])
+		const ogDimensions = await getDimensions(imgBlob)
 
 		//Crop imgBlob
-		imgBlob = await crop(imgBlob, {top:80, left:80})
+		//imgBlob = await crop(imgBlob, {top:80, left:80})
 
 		//Apply aspect ratio
-		imgBlob = await applyRatio(imgBlob, 1.333)
+		//imgBlob = await applyRatio(imgBlob, 1.333)
 
 		//Scale imgBlob
-		imgBlob = await scale(imgBlob, 240)
+		//imgBlob = await scale(imgBlob, 740)
 
 		//Compress img
-		//const compressedFile = await compress(imgBlob)
-		const compressedFile = imgBlob
+		const compressedFile = await compress(imgBlob)
+		//const compressedFile = imgBlob
+
+		const dimensions = await getDimensions(compressedFile)
 
 		//Save data
 		setImageBlob(compressedFile)
 
 		//Display results
 		console.log(`size: original = ${Math.floor(imgFile.size / 1024, 2)} kb, compressed = ${Math.floor(compressedFile.size / 1024, 2)} kb. ${reducPercent(imgFile.size, compressedFile.size)}%`)
+		console.log(`dimensions: before ${ogDimensions.width}x${ogDimensions.height}, after: ${dimensions.width}x${dimensions.height}`)
 	}
 }
 
@@ -172,7 +176,7 @@ async function scale(imgBlob, px) {
 			canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height)
 
 			//Get cropped blob from canvas and resolve promise
-			canvas.toBlob(blob => resolve(blob), imgBlob.type, .75)
+			canvas.toBlob(blob => resolve(blob))
 		}
 
 		//Load img blob
@@ -213,7 +217,7 @@ async function crop(imgBlob, cropOptions) {
 			canvas.getContext('2d').drawImage(img, -cropOptions.left, -cropOptions.top)
 
 			//Get cropped blob from canvas and resolve promise
-			canvas.toBlob(blob => resolve(blob), imgBlob.type, .75)
+			canvas.toBlob(blob => resolve(blob))
 		}
 
 		//Load img blob
