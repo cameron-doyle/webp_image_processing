@@ -11,11 +11,11 @@ export default function ImageProcessing(props) {
 
 	const [path, setPath] = useState("");
 
-	
+
 	return (
 		<div>
-			<input id="testImg" type="file" accept="image/*" onChange={handleImageUpload} value={path}/>
-			<div id='compressedImage'>{imageBlobs.map(image => <img src={URL.createObjectURL(image.data)} key={image.id}/>)}</div>
+			<input id="testImg" type="file" accept="image/*" onChange={handleImageUpload} value={path} />
+			<div id='compressedImage'>{imageBlobs.map(image => <img src={URL.createObjectURL(image.data)} key={image.id} />)}</div>
 		</div>
 	)
 
@@ -26,29 +26,44 @@ export default function ImageProcessing(props) {
 		setPath(event.target.value)
 
 
-		//Get img data as blob
-		let imageFile = event.target.files[0]
-		
-		imageFile = await cropImg(imageFile)
+		//Get img blob from file
+		let imgBlob = await getImgBlob(event.target.files[0])
+
+		//Crop imgBlob
+		//imgBlob = await cropImg(imgBlob, {top:500, left:300})
+
+		//Apply aspect ratio to imgBlob
+		//imgBlob = await cropImg(imgBlob, {top:500, left:300})
+
+		//Scaled imgBlob
+		//imgBlob = await cropImg(imgBlob, {top:500, left:300})
 
 		//Compress img
-		const compressedFile = await compressImg(imageFile)
+		const compressedFile = await compressImg(imgBlob)
 
 		//Save data
-		setImageBlobs(imageBlobs  => [...imageBlobs, {id:generateID(imageBlobs),data:compressedFile}])
+		setImageBlobs(imageBlobs => [...imageBlobs, { id: generateID(imageBlobs), data: compressedFile }])
 
 		//Display results
-		console.log(`size: original = ${Math.floor(imageFile.size / 1024, 2)} kb, compressed = ${Math.floor(compressedFile.size / 1024, 2)} kb. ${reducPercent(imageFile.size, compressedFile.size)}%`)
+		console.log(`size: original = ${Math.floor(imgBlob.size / 1024, 2)} kb, compressed = ${Math.floor(compressedFile.size / 1024, 2)} kb. ${reducPercent(imgBlob.size, compressedFile.size)}%`)
 	}
 }
 
+async function getImgBlob(imgFile) {
+	return new Promise((resolve) => {
+		const fr = new FileReader()
+		fr.readAsArrayBuffer(imgFile)
+		fr.onload = () => {
+			resolve(new Blob([fr.result]))
+		}
+	})
+}
 
 //Compresses an img and returns the compressed img as a blob
-async function compressImg(imgBlob){
+async function compressImg(imgBlob) {
 	//Compression options for browser-image-compression
 	const options = {
 		maxSizeMB: .05,
-		maxWidthOrHeight: 720,
 		useWebWorker: true
 	}
 
@@ -61,35 +76,91 @@ async function compressImg(imgBlob){
 	}
 }
 /** Apply aspect ratio https://en.wikipedia.org/wiki/Aspect_ratio_%28image%29 */
-async function applyAspectRatio(){
+async function applyAspectRatio() {
 
 }
 
-/** Crops an image according the provided optionsObj {top, right, bottom, left} */
-async function cropImg(imgBlob, cropOptions){
-	cropOptions = {left:200, bottom: 100}
+async function scaleImgByWidth(desiredWidth) {
 
-	const can = document.createElement('canvas')
-	
+}
 
-	return imgBlob
+/**
+ * Crops an image according the provided cropOptions object
+ * @param {Blob} imgBlob image data in blob format
+ * @param {Object} cropOptions {top?:number, right?:number, bottom?:number, left?:number}
+ * @returns {Promise<Blob>} cropped image Blob
+ */
+async function cropImg(imgBlob, cropOptions) {
+	return new Promise(async (resolve) => {
+		//check null and assign default values to avoid NaN calculations
+		if(cropOptions == undefined)
+			throw new Error("cropImg requires a cropOption obj in the following format: {top?:number, right?:number, bottom?:number, left?:number}")
+		cropOptions.top ??= 0
+		cropOptions.right ??= 0
+		cropOptions.bottom ??= 0
+		cropOptions.left ??= 0
+
+		console.warn(cropOptions)
+
+		const canvas = document.createElement('canvas')
+
+		//Get img w/h
+		const dimensions = await getDimensions(imgBlob)
+
+		//Set canvas size to original w/h - the desired crop for each axis
+		canvas.width = dimensions.width - (cropOptions.left + cropOptions.right)
+		canvas.height = dimensions.height - (cropOptions.top + cropOptions.bottom)
+
+		const img = new Image()
+
+		//When loading is complete, return the cropped img
+		img.onload = () => {
+			canvas.getContext('2d').drawImage(img, -cropOptions.left, -cropOptions.top)
+			console.log("drwaing img")
+
+			//Get cropped blob from canvas and resolve promise
+			canvas.toBlob((blob) => {
+				resolve(blob)
+			})
+		}
+
+		//Load img blob
+		img.src = URL.createObjectURL(imgBlob)
+	})
+}
+
+/**
+ * Returns the width and height of an img
+ * @param {Blob} imgBlob imageBlob
+ * @returns {Object} {width: number, height: number}
+ */
+async function getDimensions(imgBlob) {
+	return new Promise((resolve) => {
+		const img = new Image()
+
+		//On load, return the width/height
+		img.onload = () => resolve({ width: img.width, height: img.height })
+
+		//Load img
+		img.src = URL.createObjectURL(imgBlob)
+	})
 }
 
 //reduction representated by a persent, example: (100, 76) = 25%
-function reducPercent(num1, num2){
+function reducPercent(num1, num2) {
 	//Calc diff (largest input - smallest input)
-	let diff = (num1 > num2) ? num1 - num2:num2 - num1
+	let diff = (num1 > num2) ? num1 - num2 : num2 - num1
 
 	//Calc percentage decrease (diff / largest input * 100)
-	return Math.floor((diff / (num1 > num2 ? num1:num2)) * 100)
+	return Math.floor((diff / (num1 > num2 ? num1 : num2)) * 100)
 }
 
 //Returns a new ID based on the last element's id of a sorted array of objects (requires an object key of "id")
-function generateID(array){
+function generateID(array) {
 	//Sort array by id
 	array.sort((obj1, obj2) => {
-		if(obj1.id < obj2.id) return -1
-		if(obj1.id > obj2.id) return 1
+		if (obj1.id < obj2.id) return -1
+		if (obj1.id > obj2.id) return 1
 		return 0
 	})
 
@@ -97,7 +168,7 @@ function generateID(array){
 	let lastEle = array[array.length - 1]
 
 	//Return either the lastID + 1, or 1 in case of no elements (first element assumed)
-	return (lastEle !== undefined && lastEle.id > 0) ? lastEle.id + 1:1
+	return (lastEle !== undefined && lastEle.id > 0) ? lastEle.id + 1 : 1
 }
 
 /* function whatOS() {
@@ -123,6 +194,6 @@ function generateID(array){
 } */
 
 ImageProcessing.propTypes = {
-	data:arrayOf(Blob)
+	data: arrayOf(Blob)
 }
 
