@@ -36,7 +36,7 @@ export default function ImageProcessing(props) {
 		//imgBlob = await crop(imgBlob, {top:80, left:80})
 
 		//Apply aspect ratio
-		//imgBlob = await applyRatio(imgBlob, 1.333)
+		imgBlob = await applyRatio(imgBlob, 1.333)
 
 		//Scale imgBlob
 		imgBlob = await scale(imgBlob, 720)
@@ -110,6 +110,10 @@ async function getImageData(imgBlob) {
  * @returns {Promise<Blob>} compressed image blob
  */
 async function compress(imgBlob, quality) {
+	/* 
+		The webp codec files came from: https://github.com/cameron-doyle/squoosh/tree/dev/codecs/webp/enc
+		The example used to understand the codec: https://github.com/cameron-doyle/squoosh/blob/dev/codecs/webp/enc/example.html
+	*/
 	//TODO override webpDefaults with webpSettings
 	const webpDefaults = {
 		quality,
