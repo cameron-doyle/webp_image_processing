@@ -27,7 +27,7 @@ export default function ImageProcessing(props) {
 
 
 		//Get img blob from file
-		let imgBlob = await getImgBlob(event.target.files[0])
+		let imgBlob = await getBlob(event.target.files[0])
 
 		//Crop imgBlob
 		//imgBlob = await cropImg(imgBlob, {top:500, left:300})
@@ -49,17 +49,27 @@ export default function ImageProcessing(props) {
 	}
 }
 
-async function getImgBlob(imgFile) {
+/**
+ * Takes a file object and returns a blob
+ * @param {Object} imgFile https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#getting_information_on_selected_files
+ * @returns {Promise<Blob>} imgge Blob
+ */
+async function getBlob(imgFile) {
 	return new Promise((resolve) => {
 		const fr = new FileReader()
 		fr.readAsArrayBuffer(imgFile)
 		fr.onload = () => {
-			resolve(new Blob([fr.result]))
+			const blob = new Blob([fr.result], {type:imgFile.type});
+			resolve(blob)
 		}
 	})
 }
 
-//Compresses an img and returns the compressed img as a blob
+/**
+ * Compresses an image
+ * @param {*} imgBlob 
+ * @returns {Promise<Blob>}
+ */
 async function compressImg(imgBlob) {
 	//Compression options for browser-image-compression
 	const options = {
@@ -93,14 +103,12 @@ async function scaleImgByWidth(desiredWidth) {
 async function cropImg(imgBlob, cropOptions) {
 	return new Promise(async (resolve) => {
 		//check null and assign default values to avoid NaN calculations
-		if(cropOptions == undefined)
+		if (cropOptions == undefined)
 			throw new Error("cropImg requires a cropOption obj in the following format: {top?:number, right?:number, bottom?:number, left?:number}")
 		cropOptions.top ??= 0
 		cropOptions.right ??= 0
 		cropOptions.bottom ??= 0
 		cropOptions.left ??= 0
-
-		console.warn(cropOptions)
 
 		const canvas = document.createElement('canvas')
 
@@ -116,7 +124,6 @@ async function cropImg(imgBlob, cropOptions) {
 		//When loading is complete, return the cropped img
 		img.onload = () => {
 			canvas.getContext('2d').drawImage(img, -cropOptions.left, -cropOptions.top)
-			console.log("drwaing img")
 
 			//Get cropped blob from canvas and resolve promise
 			canvas.toBlob((blob) => {
