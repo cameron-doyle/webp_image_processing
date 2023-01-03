@@ -32,16 +32,20 @@ export default function ImageProcessing(props) {
 		const ratio = 4/3
 
 		//Get img blob from file
-		const imgFile = event.target.files[0];
+		const imgFile = event.target.files[0]; //Used for stats
+
+		//Get img blob from file input
 		let imgBlob = await getBlob(event.target.files[0])
-		//let imgBlob = imgFile
+
+		//Used for stats
 		const ogDimensions = await getDimensions(imgBlob)
 
 		//Crop imgBlob
 		//imgBlob = await crop(imgBlob, {top:350, right:0, bottom:200, left:0})
 
+		//! NOTE: use the applyRatio scaling arguments instead if ratio is being used.
 		//Scale imgBlob
-		//imgBlob = await scale(imgBlob, 1920, "width")
+		//imgBlob = await scale(imgBlob, 420, "width")
 
 		//Apply aspect ratio and scale to desired resolution
 		imgBlob = await applyRatio(imgBlob, ratio, { px, dimention })
