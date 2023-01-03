@@ -22,28 +22,32 @@ export default function ImageProcessing(props) {
 	//Compresses images on change of the file input
 	async function handleImageUpload(event) {
 		//TODO for the sake of usability, make all methods take a file from filelist, and convert it to blob if not blob https://developer.mozilla.org/en-US/docs/Web/HTML/Element/input/file#getting_information_on_selected_files
-		
+
 		//Update the path value for file input
 		setPath(event.target.value)
 
+		const quality = 75
+		const px = 720
+		const dimention = "height"
+		const ratio = 4/3
 
 		//Get img blob from file
 		const imgFile = event.target.files[0];
 		let imgBlob = await getBlob(event.target.files[0])
+		//let imgBlob = imgFile
 		const ogDimensions = await getDimensions(imgBlob)
 
 		//Crop imgBlob
 		//imgBlob = await crop(imgBlob, {top:350, right:0, bottom:200, left:0})
 
-		
 		//Scale imgBlob
-		imgBlob = await scale(imgBlob, 1920)
-		
-		//Apply aspect ratio
-		imgBlob = await applyRatio(imgBlob, 1.77777777778)
+		//imgBlob = await scale(imgBlob, 1920, "width")
+
+		//Apply aspect ratio and scale to desired resolution
+		imgBlob = await applyRatio(imgBlob, ratio, { px, dimention })
+
 		//Compress img
-		const quality = 40
-		const compressedFile = await compress(imgBlob, quality)
+		const compressedFile = await webpCompress(imgBlob, quality)
 
 		//Get new dimensions
 		const dimensions = await getDimensions(compressedFile)
@@ -66,15 +70,12 @@ async function getBlob(imgFile) {
 	return new Promise((resolve) => {
 		const fr = new FileReader()
 		fr.readAsArrayBuffer(imgFile)
-		fr.onload = () => {
-			const blob = new Blob([fr.result], { type: imgFile.type });
-			resolve(blob)
-		}
+		fr.onload = () => resolve(new Blob([fr.result], { type: imgFile.type }))
 	})
 }
 
 /**
- * Takes a Blob and returns an instance of ImageData
+ * Takes a Blob and returns an instance of ImageData (used by compression method)
  * @param {Blob} imgBlob 
  * @returns {Promise<ImageData>} ImageData
  */
@@ -107,70 +108,100 @@ async function getImageData(imgBlob) {
 /**
  * Compresses an image Blob
  * @param {Blob} imgBlob 
- * @param {object} settings 
+ * @param {Number} quality between 0 and 100
  * @returns {Promise<Blob>} compressed image blob
  */
-async function compress(imgBlob, quality) {
+async function webpCompress(imgBlob, quality) {
 	/* 
 		The webp codec files came from: https://github.com/cameron-doyle/squoosh/tree/dev/codecs/webp/enc
 		The example used to understand the codec: https://github.com/cameron-doyle/squoosh/blob/dev/codecs/webp/enc/example.html
 	*/
-	//TODO override webpDefaults with webpSettings
-	const webpDefaults = {
-		quality,
-		target_size: 0,
-		target_PSNR: 0,
-		method: 4,
-		sns_strength: 50,
-		filter_strength: 60,
-		filter_sharpness: 0,
-		filter_type: 1,
-		partitions: 0,
-		segments: 4,
-		pass: 1,
-		show_compressed: 0,
-		preprocessing: 0,
-		autofilter: 0,
-		partition_limit: 0,
-		alpha_compression: 1,
-		alpha_filtering: 1,
-		alpha_quality: 100,
-		lossless: 0,
-		exact: 0,
-		image_hint: 0,
-		emulate_jpeg_size: 0,
-		thread_level: 0,
-		low_memory: 0,
-		near_lossless: 100,
-		use_delta_palette: 0,
-		use_sharp_yuv: 0,
-	}
 	return new Promise(async resolve => {
 		webp_enc().then(async module => {
 			const image = await getImageData(imgBlob);
-			resolve(new Blob([module.encode(image.data, image.width, image.height, webpDefaults)], { type: 'image/webp' }));
+			resolve(new Blob([module.encode(image.data, image.width, image.height, {
+				quality,
+				target_size: 0,
+				target_PSNR: 0,
+				method: 4,
+				sns_strength: 50,
+				filter_strength: 60,
+				filter_sharpness: 0,
+				filter_type: 1,
+				partitions: 0,
+				segments: 4,
+				pass: 1,
+				show_compressed: 0,
+				preprocessing: 0,
+				autofilter: 0,
+				partition_limit: 0,
+				alpha_compression: 1,
+				alpha_filtering: 1,
+				alpha_quality: 100,
+				lossless: 0,
+				exact: 0,
+				image_hint: 0,
+				emulate_jpeg_size: 0,
+				thread_level: 0,
+				low_memory: 0,
+				near_lossless: 100,
+				use_delta_palette: 0,
+				use_sharp_yuv: 0,
+			})], { type: 'image/webp' }));
 		})
 	})
 }
 
 /**
  * Applies an aspect ratio: https://en.wikipedia.org/wiki/Aspect_ratio_%28image%29#Still_photography
+ * NOTE: if you use scaling, apply the scaling before applying the ratio, it leads to more consistant ratios.
  * @param {Blob} imgBlob 
- * @param {Float} ratio see wikipedia page for standard ratios, and https://www.inchcalculator.com/ratio-to-decimal-calculator/ for ratio to decimal calculator
+ * @param {Float} ratio Decimal ratio, pass in a division like 4/3 or 16/9, see wikipedia page for standard ratios
+ * @param {object} targetResolution object that determines the desired width or height in pixels, format: {px:number, dimention:string = "width" or "height"}
  * @returns {Promise<Blob>} cropped img blob
  */
-async function applyRatio(imgBlob, ratio) {
-	//BUG it would appear that the aspect ratios are not working correctly...
+async function applyRatio(imgBlob, ratio, targetResolution = null) {
 	//InverseRatio is used on width, ratio is used on height
 	const inverseRatio = 1 / ratio
 
+	//If scaleOptions isn't undefined, and both px & dimention isn't undefined, and px is a positive number, and dimentions is either "width" or "height"
+	if (targetResolution !== undefined && (targetResolution.px !== undefined && targetResolution.px > 0) && (targetResolution.dimention !== undefined && (targetResolution.dimention === "width" || targetResolution.dimention === "height"))) {
+		//The target w/h after scaling and ratio applied
+		let optimalWidth, optimalHeight
+
+		//Calculate optimal (desired final) w/h based on which was provided
+		if (targetResolution.dimention === "height") {
+			optimalWidth = parseFloat(ratio * targetResolution.px).toFixed(0)
+			optimalHeight = Number(targetResolution.px);
+		} else {
+			optimalHeight = parseFloat(inverseRatio * targetResolution.px).toFixed(0)
+			optimalWidth = Number(targetResolution.px);
+		}
+
+		//calculate the diff between the optimal dimentions and actual dimentions (make positive if negative)
+		let actualDi = await getDimensions(imgBlob)
+
+		let wDiff = actualDi.width - optimalWidth
+		wDiff = (wDiff < 0) ? wDiff * 1 : wDiff
+
+		let hDiff = actualDi.height - optimalHeight
+		hDiff = (hDiff < 0) ? hDiff * 1 : hDiff
+
+		//Scale based on whichever dimention will fit
+		if (wDiff <= hDiff)
+			imgBlob = await scale(imgBlob, optimalWidth, "width")
+		else
+			imgBlob = await scale(imgBlob, optimalHeight, "height")
+	}
+
 	//Get image dimensions
-	const dimensions = await getDimensions(imgBlob)
+	let dimensions = await getDimensions(imgBlob)
 
 	//Get desired (optimal) dimensions to be used for cropping
-	const desiredHeight = parseFloat(inverseRatio * dimensions.width).toFixed(0)
-	const desiredWidth = parseFloat(ratio * dimensions.height).toFixed(0)
+	let desiredWidth = parseFloat(ratio * dimensions.height).toFixed(0)
+	let desiredHeight = parseFloat(inverseRatio * dimensions.width).toFixed(0)
 
+	//Determine which dimention to crop, for the desired ratio
 	if (dimensions.height > desiredHeight) { //Crop excess from height
 		//Calc how many pixels need to be removed in total
 		const toRemove = dimensions.height - desiredHeight
@@ -183,12 +214,6 @@ async function applyRatio(imgBlob, ratio) {
 		*/
 		const fromTop = Number(parseFloat((toRemove / 2) + .1).toFixed(0))
 		const fromBot = Number(parseFloat((toRemove / 2) - .1).toFixed(0))
-
-		console.warn(desiredHeight, desiredWidth)
-		console.warn(dimensions.height - desiredHeight)
-		console.warn(fromTop + fromBot)
-		console.warn(dimensions.height - (fromTop + fromBot))
-
 		return crop(imgBlob, { top: fromTop, bottom: fromBot })
 	} else if (dimensions.width > desiredWidth) { //Crop excess from width
 		//Calc how many pixels need to be removed in total
@@ -210,12 +235,13 @@ async function applyRatio(imgBlob, ratio) {
 }
 
 /**
- * Scales an image 
- * @param {Blob} imgBlob 
- * @param {Number} px the px size to scale to, applied to the largest dimension
+ * Scales an images width/height up/down to a specified size in pixels
+ * @param {Blob|File} imgBlob 
+ * @param {Number} px desired size in pixels
+ * @param {string} on either "width" || "height"
  * @returns {Promise<Blob>} scaled image Blob
  */
-async function scale(imgBlob, px) {
+async function scale(imgBlob, px, on) {
 	return new Promise(async (resolve) => {
 		const canvas = document.createElement('canvas')
 
@@ -225,11 +251,12 @@ async function scale(imgBlob, px) {
 		const dimensions = await getDimensions(imgBlob)
 
 		let scale
-		if (dimensions.width >= dimensions.height) {
-			//BUG maths is broken, 990 pixels is making the width be 10px?!
+		if (on.toLowerCase() === "width") {
 			scale = (dimensions.width - px) / dimensions.width
-		} else {
+		} else if (on.toLowerCase() === "height") {
 			scale = (dimensions.height - px) / dimensions.height
+		} else {
+			throw new Error(`Scale requires the on argument to be either 'width' or 'height'. on = ${on}`)
 		}
 
 		canvas.width = dimensions.width - (dimensions.width * scale)
@@ -257,7 +284,6 @@ async function scale(imgBlob, px) {
  * @returns {Promise<Blob>} cropped image Blob
  */
 async function crop(imgBlob, cropOptions) {
-	//TODO limit the cropping so that we can't crop more than the pixels avliable, if l+r > width, l & r = parseFloat((width / 2) +/- .1).toFixed(0)
 	return new Promise(async (resolve) => {
 		//check null and assign default values to avoid NaN calculations
 		if (cropOptions == undefined)
@@ -283,7 +309,7 @@ async function crop(imgBlob, cropOptions) {
 			canvas.getContext('2d').drawImage(img, -cropOptions.left, -cropOptions.top)
 
 			//Get cropped blob from canvas and resolve promise
-			canvas.toBlob(blob => resolve(blob))
+			canvas.toBlob(async blob => resolve(blob))
 		}
 
 		//Load img blob
